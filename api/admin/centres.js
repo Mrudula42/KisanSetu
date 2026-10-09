@@ -22,7 +22,7 @@ function validate(body) {
   if (![duration,farmers,kg,slotFarmers,slotKg].every(Number.isFinite) || duration < 10 || duration > 240 || farmers < 1 || kg <= 0 || slotFarmers < 1 || slotKg <= 0) return { error: 'Enter valid slot and capacity values.' };
   if (emergencyKg < 0 || emergencyFarmers < 0 || emergencyKg > kg) return { error: 'Emergency reservation must fit inside total daily capacity.' };
   if (!days.length) return { error: 'Choose at least one operating day.' };
-  return { name,location,open,close,duration,farmers,kg,slotFarmers,slotKg,emergencyKg,emergencyFarmers,days,is_active:body.is_active !== false };
+  return { name,location,open,close,duration,farmers,kg,slotFarmers,slotKg,emergencyKg,emergencyFarmers,days,is_active:body.is_active !== false,emergency_priority_enabled:body.emergency_priority_enabled === true };
 }
 
 export default async function (req, res) {
@@ -33,15 +33,15 @@ export default async function (req, res) {
     let rows;
     if (req.method === 'POST') {
       const result = await db.query(
-        'INSERT INTO procurement_centres (name,location,operating_days,opening_time,closing_time,slot_duration_minutes,max_farmers_day,max_quantity_kg_day,max_farmers_slot,max_quantity_kg_slot,emergency_reserved_kg,emergency_max_farmers_day,is_active) VALUES ($1,$2,$3,$4::time,$5::time,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id,name,location,operating_days,opening_time,closing_time,slot_duration_minutes,max_farmers_day,max_quantity_kg_day,max_farmers_slot,max_quantity_kg_slot,emergency_reserved_kg,emergency_max_farmers_day,is_active',
-        [value.name,value.location,value.days,value.open,value.close,value.duration,value.farmers,value.kg,value.slotFarmers,value.slotKg,value.emergencyKg,value.emergencyFarmers,value.is_active]
+        'INSERT INTO procurement_centres (name,location,operating_days,opening_time,closing_time,slot_duration_minutes,max_farmers_day,max_quantity_kg_day,max_farmers_slot,max_quantity_kg_slot,emergency_reserved_kg,emergency_max_farmers_day,is_active,emergency_priority_enabled) VALUES ($1,$2,$3,$4::time,$5::time,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id,name,location,operating_days,opening_time,closing_time,slot_duration_minutes,max_farmers_day,max_quantity_kg_day,max_farmers_slot,max_quantity_kg_slot,emergency_reserved_kg,emergency_max_farmers_day,is_active,emergency_priority_enabled',
+        [value.name,value.location,value.days,value.open,value.close,value.duration,value.farmers,value.kg,value.slotFarmers,value.slotKg,value.emergencyKg,value.emergencyFarmers,value.is_active,value.emergency_priority_enabled]
       ); rows = result.rows;
     } else {
       const id = Number(body.id);
       if (!Number.isSafeInteger(id) || id < 1) return res.status(422).json({ error: 'Choose a valid centre.' });
       const result = await db.query(
-        'UPDATE procurement_centres SET name=$2,location=$3,operating_days=$4,opening_time=$5::time,closing_time=$6::time,slot_duration_minutes=$7,max_farmers_day=$8,max_quantity_kg_day=$9,max_farmers_slot=$10,max_quantity_kg_slot=$11,emergency_reserved_kg=$12,emergency_max_farmers_day=$13,is_active=$14,updated_at=now() WHERE id=$1 RETURNING id,name,location,operating_days,opening_time,closing_time,slot_duration_minutes,max_farmers_day,max_quantity_kg_day,max_farmers_slot,max_quantity_kg_slot,emergency_reserved_kg,emergency_max_farmers_day,is_active',
-        [id,value.name,value.location,value.days,value.open,value.close,value.duration,value.farmers,value.kg,value.slotFarmers,value.slotKg,value.emergencyKg,value.emergencyFarmers,value.is_active]
+        'UPDATE procurement_centres SET name=$2,location=$3,operating_days=$4,opening_time=$5::time,closing_time=$6::time,slot_duration_minutes=$7,max_farmers_day=$8,max_quantity_kg_day=$9,max_farmers_slot=$10,max_quantity_kg_slot=$11,emergency_reserved_kg=$12,emergency_max_farmers_day=$13,is_active=$14,emergency_priority_enabled=$15,updated_at=now() WHERE id=$1 RETURNING id,name,location,operating_days,opening_time,closing_time,slot_duration_minutes,max_farmers_day,max_quantity_kg_day,max_farmers_slot,max_quantity_kg_slot,emergency_reserved_kg,emergency_max_farmers_day,is_active,emergency_priority_enabled',
+        [id,value.name,value.location,value.days,value.open,value.close,value.duration,value.farmers,value.kg,value.slotFarmers,value.slotKg,value.emergencyKg,value.emergencyFarmers,value.is_active,value.emergency_priority_enabled]
       ); rows = result.rows;
       if (!rows.length) return res.status(404).json({ error: 'Centre not found.' });
     }

@@ -25,7 +25,7 @@ export default async function (req, res) {
       const [metrics, bookings, centres, trend] = await Promise.all([
         db.query(metricsSql),
         db.query(bookingsSql),
-        db.query('SELECT id,name,location,operating_days,opening_time,closing_time,slot_duration_minutes,max_farmers_day,max_quantity_kg_day,max_farmers_slot,max_quantity_kg_slot,emergency_reserved_kg,emergency_max_farmers_day,is_active FROM procurement_centres ORDER BY name'),
+        db.query('SELECT id,name,location,operating_days,opening_time,closing_time,slot_duration_minutes,max_farmers_day,max_quantity_kg_day,max_farmers_slot,max_quantity_kg_slot,emergency_reserved_kg,emergency_max_farmers_day,is_active,emergency_priority_enabled FROM procurement_centres ORDER BY name'),
         db.query(trendSql)
       ]);
       return res.json({ metrics: metrics.rows[0], bookings: bookings.rows, centres: centres.rows, trend: trend.rows });

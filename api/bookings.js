@@ -26,8 +26,8 @@ export default async function (req, res) {
     const start = typeof body.slot_start === 'string' ? body.slot_start : '';
     const emergency = body.is_emergency === true;
     if (!Number.isSafeInteger(produceId) || produceId < 1 || !Number.isSafeInteger(centreId) || centreId < 1) return res.status(422).json({ error: 'Choose your produce and a procurement centre.' });
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || new Date(date + 'T23:59:59Z').getTime() < Date.now()) return res.status(422).json({ error: 'Choose today or a future date.' });
-    if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(start)) return res.status(422).json({ error: 'Choose a valid time slot.' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || new Date(date + 'T23:59:59Z').getTime() < Date.now()) return res.status(422).json({ error: 'Choose today or a future date.' });
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(start)) return res.status(422).json({ error: 'Choose a valid time slot.' });
     const produceResult = await db.query('SELECT id,crop_name,quantity,unit,quantity_kg,perishability,urgency FROM farmer_produce WHERE id=$1 AND user_id=$2', [produceId,userId]);
     if (!produceResult.rows.length) return res.status(404).json({ error: 'Produce not found. Refresh your produce list.' });
     const crop = produceResult.rows[0];
@@ -37,10 +37,14 @@ export default async function (req, res) {
     const dayDate = new Date(date + 'T12:00:00Z');
     const dayName = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dayDate.getUTCDay()];
     if (!(centre.operating_days || []).includes(dayName)) return res.status(422).json({ error: 'This centre is closed on that day.' });
-    const mins = t => { const m = String(t).slice(0,5).match(/^(\\d{2}):(\\d{2})$/); return m ? Number(m[1])*60+Number(m[2]) : NaN; };
+    const mins = t => { const m = String(t).slice(0,5).match(/^(\d{2}):(\d{2})$/); return m ? Number(m[1])*60+Number(m[2]) : NaN; };
     const startMins = mins(start), open = mins(centre.opening_time), close = mins(centre.closing_time), duration = Number(centre.slot_duration_minutes);
     const endMins = startMins + duration;
     if (!Number.isFinite(startMins) || startMins < open || endMins > close || (startMins-open) % duration !== 0) return res.status(422).json({ error: 'That slot is outside the centre hours. Choose one of the listed slots.' });
+    const localNow = new Date();
+    const localDate = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(localNow);
+    const localClock = new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(localNow).split(':').map(Number);
+    if (date === localDate && startMins <= localClock[0]*60+localClock[1]) return res.status(422).json({ error: 'That time has already passed today. Choose a later available slot.' });
     const pad = n => String(Math.floor(n/60)).padStart(2,'0') + ':' + String(n%60).padStart(2,'0');
     const end = pad(endMins);
     if (emergency && !(crop.perishability === 'HIGH' && ['HIGH','CRITICAL'].includes(crop.urgency))) return res.status(422).json({ error: 'Emergency booking is only for highly perishable, high-urgency produce.' });
@@ -53,7 +57,23 @@ export default async function (req, res) {
          FROM bookings WHERE centre_id=$1 AND procurement_date=$2::date`, [centreId,date,start]
       );
       const l = load.rows[0];
-      const regularSlotStillAvailable = Number(l.slot_farmers) < Number(centre.max_farmers_slot) && Number(l.slot_kg)+Number(crop.quantity_kg) <= Number(centre.max_quantity_kg_slot) && Number(l.total_farmers) < Number(centre.max_farmers_day) && Number(l.total_kg)+Number(crop.quantity_kg) <= Number(centre.max_quantity_kg_day)-Number(centre.emergency_reserved_kg);
+      const slotLoads = await db.query(
+        "SELECT slot_start,count(*) FILTER (WHERE status NOT IN ('CANCELLED','NO_SHOW'))::int AS farmers,COALESCE(sum(quantity_kg) FILTER (WHERE status NOT IN ('CANCELLED','NO_SHOW')),0)::numeric AS kg FROM bookings WHERE centre_id=$1 AND procurement_date=$2::date GROUP BY slot_start",
+        [centreId,date]
+      );
+      const slotMap = Object.fromEntries(slotLoads.rows.map(row => [String(row.slot_start).slice(0,5),row]));
+      const regularDayStillAvailable = Number(l.total_farmers) < Number(centre.max_farmers_day) && Number(l.total_kg)+Number(crop.quantity_kg) <= Number(centre.max_quantity_kg_day)-Number(centre.emergency_reserved_kg);
+      let regularSlotStillAvailable = false;
+      if (regularDayStillAvailable) {
+        for (let slotMinute = open; slotMinute + duration <= close; slotMinute += duration) {
+          const key = pad(slotMinute);
+          const row = slotMap[key] || {farmers:0,kg:0};
+          if (Number(row.farmers) < Number(centre.max_farmers_slot) && Number(row.kg)+Number(crop.quantity_kg) <= Number(centre.max_quantity_kg_slot)) {
+            regularSlotStillAvailable = true;
+            break;
+          }
+        }
+      }
       if (regularSlotStillAvailable) return res.status(422).json({ error: 'A regular slot still has capacity. Please book it normally; emergency capacity is reserved for cases with no regular space.' });
     }
     const transaction = await db.transaction([

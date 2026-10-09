@@ -14,7 +14,8 @@ export default async function (req, res) {
     if (!current.rows.length) return res.status(404).json({ error: 'Booking not found.' });
     const booking = current.rows[0];
     if (action === 'CHECK_IN') {
-      if (String(booking.procurement_date).slice(0,10) !== new Date().toISOString().slice(0,10)) return res.status(409).json({ error: 'Check-in is available on your booking date.' });
+      const localToday = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+      if (String(booking.procurement_date).slice(0,10) !== localToday) return res.status(409).json({ error: 'Check-in is available on your booking date.' });
       if (!['BOOKED','WAITING'].includes(booking.status)) return res.status(409).json({ error: 'This booking cannot be checked in from its current status.' });
       const result = await db.query("UPDATE bookings SET status='CHECKED_IN',checked_in_at=COALESCE(checked_in_at,now()),updated_at=now() WHERE id=$1 AND user_id=$2 AND status IN ('BOOKED','WAITING') RETURNING id,token,status", [id,userId]);
       if (!result.rows.length) return res.status(409).json({ error: 'The booking has already changed. Refresh your list.' });
