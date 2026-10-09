@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#173e2b">
+<title>Sign in — KisanSetu</title>
+<link rel="stylesheet" href="/theme.css">
+<style>
+.login-page{min-height:100vh;display:grid;grid-template-columns:1fr 1fr;background:var(--cream)}.login-story{background:var(--forest);color:white;padding:60px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden}.login-story:after{content:"";position:absolute;right:-170px;bottom:-220px;width:520px;height:520px;border:1px solid rgba(217,238,157,.3);border-radius:50%;box-shadow:0 0 0 45px rgba(217,238,157,.04),0 0 0 95px rgba(217,238,157,.04)}.login-story h1{font-size:clamp(36px,4vw,56px);max-width:520px;margin:18px 0}.login-story h1 em{font-style:normal;color:var(--lime)}.login-story p{color:#c4d7c9;max-width:460px;line-height:1.8}.login-main{display:grid;place-items:center;padding:28px}.login-card{width:min(100%,450px);background:var(--paper);border:1px solid var(--line);border-radius:24px;padding:34px;box-shadow:var(--shadow)}.login-card h2{font-size:26px;margin:20px 0 8px}.login-card p{color:var(--muted);font-size:13px;line-height:1.7}.login-card .field{margin:18px 0}.login-card .btn{width:100%;min-height:46px}.login-message{display:none;margin-top:16px;border-radius:10px;background:#edf4e6;color:var(--forest);padding:12px;font-size:12px}.login-message.error{background:#fae8e4;color:#9e352a}.muted-link{display:block;color:var(--leaf);font-size:12px;text-align:center;margin-top:15px;font-weight:700}.login-quote{position:relative;z-index:1;font-size:12px;color:#a9c4ad}.login-wordmark{display:flex;align-items:center;gap:12px;font-family:Manrope,sans-serif;font-weight:800;font-size:20px}.login-wordmark small{display:block;font:600 10px 'DM Sans',sans-serif;color:#bbd0bf;letter-spacing:.12em}.login-card .hint{font-size:11px;margin-top:10px}.login-card .btn-soft{margin-top:10px}@media(max-width:760px){.login-page{display:block}.login-story{padding:24px 23px 28px;min-height:230px}.login-story h1{font-size:32px;margin:16px 0 10px}.login-story p{font-size:12px;margin-bottom:0}.login-quote{display:none}.login-main{padding:24px 14px}.login-card{padding:24px;border-radius:19px}}
+</style>
+</head>
+<body>
+<div class="login-page">
+<section class="login-story">
+<div class="login-wordmark"><span class="brand-mark">K</span><div>KisanSetu<small>SMART PROCUREMENT</small></div></div>
+<div style="position:relative;z-index:1"><div class="eyebrow" style="color:var(--lime)">BUILT AROUND THE FARMER</div><h1>Your crop deserves a <em>better queue.</em></h1><p>Sign in to book a procurement slot, receive your digital token, follow the queue and keep track of quality and payment updates.</p></div>
+<div class="login-quote">From field to market, with more clarity.</div>
+</section>
+<section class="login-main">
+<div class="login-card">
+<div class="brand"><span class="brand-mark">K</span><div>KisanSetu<small>FARMER ACCOUNT</small></div></div>
+<h2 id="login-title">Welcome back</h2><p id="login-copy">Enter your email address. We’ll send you a secure one-time sign-in code.</p>
+<form id="email-form">
+<div class="field"><label for="email">Email address</label><input id="email" type="email" autocomplete="email" required placeholder="you@example.com"></div>
+<button class="btn btn-primary" type="submit" id="send-code">Send sign-in code ↗</button>
+</form>
+<form id="code-form" style="display:none">
+<div class="field"><label for="code">6-digit code</label><input id="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required placeholder="123456"></div>
+<button class="btn btn-primary" type="submit" id="verify-code">Verify and sign in</button>
+<button class="btn btn-soft" type="button" id="resend">Send a new code</button>
+</form>
+<button class="btn btn-soft" id="passkey" style="display:none;margin-top:10px" type="button">Sign in with passkey</button>
+<div id="login-message" class="login-message"></div>
+<a class="muted-link" href="/">← Back to KisanSetu home</a>
+<p class="hint">Your account uses passwordless authentication. Never share a one-time code with anyone.</p>
+</div>
+</section>
+</div>
+<script>
+(function(){
+const A=window.hatchable&&window.hatchable.auth;
+const $=id=>document.getElementById(id);
+let email='';
+const next=new URLSearchParams(location.search).get('next');
+const redirect=next&&next.startsWith('/')&&!next.startsWith('//')?next:'/';
+function message(text,error){const el=$('login-message');el.textContent=text;el.style.display='block';el.className='login-message'+(error?' error':'');}
+async function start(){if(!A){message('Authentication is not available right now. Refresh and try again.',true);return;}
+email=$('email').value.trim().toLowerCase();if(!email)return;
+$('send-code').disabled=true;
+try{const r=await A.startLogin({email});$('email-form').style.display='none';$('code-form').style.display='block';$('login-title').textContent='Check your email';$('login-copy').textContent='Enter the six-digit code we sent to '+email+'.';$('code').focus();message('A sign-in code was requested. Check your inbox.');if(r&&r.has_passkey)$('passkey').style.display='block';}
+catch(e){message(e.message||'Could not send a code. Check your email and try again.',true);}
+finally{$('send-code').disabled=false;}
+}
+async function verify(){if(!A)return;const code=$('code').value.trim();if(!/^[0-9]{6}$/.test(code)){message('Enter the six-digit code.',true);return;}
+$('verify-code').disabled=true;
+try{await A.verifyCode({email:email||$('email').value.trim().toLowerCase(),code});message('Signed in. Opening your KisanSetu workspace…');location.assign(redirect);}
+catch(e){message(e.message||'That code could not be verified. Request another code and try again.',true);}
+finally{$('verify-code').disabled=false;}
+}
+$('email-form').addEventListener('submit',e=>{e.preventDefault();start();});
+$('code-form').addEventListener('submit',e=>{e.preventDefault();verify();});
+$('resend').addEventListener('click',start);
+$('passkey').addEventListener('click',async()=>{try{await A.signInWithPasskey({email:email||$('email').value.trim().toLowerCase()});location.assign(redirect);}catch(e){message(e.message||'Passkey sign-in was cancelled or unavailable.',true);}});
+if(A)A.getSession().then(s=>{if(s&&s.user)location.assign(redirect);}).catch(()=>{});
+})();
+</script>
+</body>
+</html>
